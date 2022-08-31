@@ -1,0 +1,329 @@
+---
+title: "POSTm: Phylogeney-Guided OTU-Specific Association Test for Microbiome Data"
+author: "Caizhi Huang, Jung-Ying Tzeng, and Shannon T. Holloway"
+date: April 12, 2021
+output: rmarkdown::pdf_document
+vignette: >
+  %\VignetteIndexEntry{POSTm: $\text{\underline{P}}$hylogeney-Guided $\text{\underline{O}}$TU-$\text{\underline{S}}$pecific Association $\text{\underline{T}}$est for $\text{\underline{M}}$icrobiome Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+
+---
+
+```{r setup, include=FALSE}
+library(POSTm)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The \textbf{POSTm} package implements
+the phylogeny-guided microbiome OTU-specific association test as described
+in Huang et al. 2021. This method boosts the testing power by adaptively
+borrowing information from phylogenetically close OTUs of the target OTU.
+Whether or not borrowing information or the amount of information
+from the neighboring OTUs is data adaptive and supervised by
+phylogenetic distance and the outcome variable. \textbf{POSTm} is built
+on a kernel machine regression framework and inherited the advantages
+including flexible modeling of microbiome effects (e.g., effects from
+opposite direction), easy adjustment for covariates, and
+accommodation of both continuous and binary outcomes. \textbf{POSTm}
+extends the current global kernel tests of Zhao, et al. (2015),
+Wu, et al. (2016), and Koh, et al. (2017) to OTU-level testing using
+an OTU-specific kernel. Currently, \textbf{POSTm} uses the
+Aitchison distance to quantify microbiome dissimilarity between
+individual pairs.
+
+
+
+The primary analysis tool of the package is \textit{post()}, which implements
+the phylogeny-guided microbiome OTU-specific association test. In addition, the 
+package includes convenience functions \textit{p.adjust()},
+providing standard multiple adjustment methods; \textit{plot()}, 
+which extends the plotting capabilities of the \textbf{ape} package
+to highlight significant OTUs; 
+and \textit{print()}, which allows for informative or controlled screen prints
+of the primary results.
+
+## Functions
+
+### \textit{post()}
+
+The function call takes the following form:
+
+```{r eval=FALSE}
+post(y, OTU, tree = NULL, X = NULL, cValues = seq(from = 0, to = 0.05, by = 0.01))
+```
+
+where required input \texttt{y} is a binary or continuous outcome of interest and \texttt{OTU} is a matrix of
+operational taxonomic units (OTUs) and can be either counts or proportions. The optional input \texttt{tree} can take one of three forms: (1) a full
+phylogenetic tree of class "phylo" as defined by R package \textbf{ape}; (2) a matrix of the pairwise distances between
+all OTUs of the full tree as defined by their branch lengths; or (3) NULL, which limits the analysis to only the single OTU test. 
+Note that for forms (1) and (2), if the tree contains more identifiers than provided through \texttt{OTU}, the tree should \underline{\textbf{not}} be truncated or subset (See Huang et al. (2021) discussion section for details). Input \texttt{X} is a matrix of covariates (not including intercept) used to
+model the outcome of interest or NULL, indicating an intercept only model. Finally, \texttt{cValues} is a vector
+of tuning parameters used to control how fast the OTU correlation decreases when the between-OTU distance increases. If the length
+of input \texttt{cValues} is greater than 1, an 'optimal' for each OTU will be identified based on the p-values.
+
+The value object returned by \textit{post()} is an S3 object of class "POST". Objects of this class contain
+a matrix providing the POST and/or single OTU p-values and the 'optimal' tuning parameters and have an
+attribute "tree" containing the object passed through input \texttt{tree} for use in post-analysis tools.
+
+### \textit{p.adjust()}
+
+This function extends the \textit{p.adjust()} method of the \textbf{stats} package to accommodate
+objects of class "POST" and incorporates an additional test as provided through \textit{mt.rawp2adjp()} of
+packgae \textbf{multtest}. When provided a "POST" object,
+this function calculates the adjusted POST and/or single OTU p-values using one or more of the following
+methods: "bonferroni", "holm", "hochberg", "hommel", "BH", "BY", or "TSBH". Details regarding these
+tests can be found in the original help files, i.e., \?stats::p.adjust and \?multtest::mt.rawp2adjp. 
+
+The function call takes the following form:
+
+```{r eval = FALSE}
+p.adjust(p, ..., method = p.adjust.methods, n = length(x = p), alpha = 0.05)
+```
+
+where \texttt{p} is a "POST" object, \texttt{method} is one or more adjustment methods, \texttt{n} is the 
+number of comparisons, and \texttt{alpha} is the type I error rate used for estimating the number of true
+null hypotheses if the two-stage Benjamini \& Hochberg (TSBH) procedure is selected.
+
+The value object returned is a list object, the elements of which depend on the original tests selected. 
+For all analyses, the list will contain element \texttt{\$adjSO}, which provides a matrix of the raw and 
+adjusted single OTU p-values. For analyses that also included POST, the list will contain element 
+\texttt{\$adjPOST}, which provides a matrix of the raw and adjusted POST p-values.
+
+### \textit{plot()}
+
+This function extends the plotting capabilities of the \textbf{ape} package so that
+significant OTUs are highlighted. The function call is as follows:
+
+```{r eval = FALSE}
+plot(x, ..., siglevel = 0.05, method = "none", alpha = 0.05, subTree = TRUE)
+```
+
+where \texttt{x} is a "POST" object, \texttt{siglevel} is the threshold for "significant" p-values, \texttt{method} is
+a p-value adjustment method as described above for \textit{p.adjust()} (\texttt{method} = "none" uses the raw p-values), 
+\texttt{alpha} is the type I error rate if \texttt{method} = "TSBH", and \texttt{subTree} is a logical indicating if only
+the tips used in the original analysis should be included in the plot. The
+ellipsis can be used to control most inputs to the original \textit{plot()} method as defined by \textbf{ape}. 
+See ?ape::plot.phylo for further information on available options.
+
+### \textit{print()}
+
+This convenience function extends the standard print method to allow for selection of p-values below a specified threshold.
+
+```{r eval = FALSE}
+print(x, ..., siglevel = 1.0)
+```
+
+prints the POST and/or SO p-values only for those OTUs with p-values below \texttt{siglevel}. When siglevel = 1, all OTUs are printed.
+
+
+## Examples
+
+A dataset has been provided with the package to facilitate illustration. The data are adapted from the vaginal microbiome dataset from Subramaniam et al. (2016). The original dataset consists of 39 individuals with 19 bacterial vaginosis (BV) patients and 20 healthy controls. The sequencing data and metadata are publicly available at NCBI SRA database (PRJNA600021). Initial data processing leads to 2711 OTUs formed at 97% similarity. FastTree (Price et al, 2010) was used to construct the phylogenetic tree. We further filtered the OTUs excluding those with abundance $<0.005\%$ and prevalence $< 10\%$, which reduced the number of OTUs to 189. The data can be loaded into the environment as follows
+
+```{r}
+library("POSTm")
+data("POSTmData")
+```
+
+There are four objects now loaded into the environment: \texttt{metadata}, a data.frame object containing patient ids, a dichotomous race indicator (coded as "B"/"C"), and a binary health status (coded as "BV"/"Normal"); \texttt{otu}, a matrix of OTU counts; \texttt{otutree}, a phylogenetic tree of class "phylo"; and \texttt{otuseq}, a character vector of OTU sequences.
+
+
+Ultimately, we will aim to detect the OTUs that are significantly different between the BV group and the control with adjustment for race. However, we will start
+with the simplest call structure and introduce features and capabilities gradually.
+
+The outcome of interest is the health status, column "GC" of metadata
+
+
+```{r}
+y <- as.integer(metadata[,"GC"] == "BV")
+```
+
+where y = 1 for participants experiencing bacterial vaginosis and 0 otherwise.
+
+### Example 1
+
+First, we consider the simplest analysis that includes both the POST
+and single-OTU tests. We assume an intercept only model for the outcome
+regression, and provide the phylogenetic tree. For brevity, we limit these
+early examples to only the first 20 OTUs. The analysis is initiated by
+the following call
+
+```{r}
+result1 <- post(y = y, OTU = otu[,1L:20L], tree = otutree)
+```
+
+Most of the informative messages generated by the software are provided for verification purposes. It is strongly recommended that users review the information to ensure that the software properly identifies the outcome type, the OTU type, the tree type, and the chosen model. In this example, we see that an intercept only model was used, that the OTU type is identified as count, that the response was determined to be binary, and that the tree is a phlyogenetic tree. The remaining information is generated to provide status information regarding the c-value and approximate OTU under evaluation.
+
+The value object returned is of class "POST"
+
+```{r}
+class(x = result1)
+```
+
+for which all of the previously described convenience functions are available. The \textit{print()} function provides a complete or partial list of the single-OTU p-values
+
+```{r}
+print(x = result1)
+```
+
+from which we see that the raw POST p-values are given in the first column of the returned matrix (\texttt{\$POST\_pvalue}), the second column contains the raw single OTU p-values (\texttt{\$SO\_pvalue}), and the first c-value corresponding to the smallest p-value for each OTU is return in the third column (\texttt{\$Best\_C}). Though not necessary given the limited number of OTUs included in this example, the print statement can be limited to only the most significant OTUs by providing \texttt{siglevel}.
+
+```{r}
+print(x = result1, siglevel = 0.04)
+```
+
+which truncates the printed results to only those OTUs with p-values $\le$ 0.04.
+
+To obtain adjusted p-values, we can use function \textit{p.adjust()}. All available adjustment methods can be retrieved by providing only the "POST" object
+
+```{r}
+p.adjust(p = result1)
+```
+
+We can also choose to limit this result to one or more methods, using input \texttt{method}
+
+```{r}
+p.adjust(p = result1, method = c("holm", "BH"))
+```
+
+When a tree is provided for the analysis, a graphical depiction of the tree with significant OTUs highlighted can be obtained using \textit{plot()}. To highlight OTUs based on the raw p-values use
+
+```{r}
+plot(x = result1, siglevel = 0.2)
+```
+
+An alternative is to highlight based on the adjusted p-values. For example, to use the BH adjusted p-values
+```{r}
+plot(x = result1, siglevel = 0.2, method = "BH")
+```
+
+If the full tree is of interest, we can set \texttt{subTree=FALSE}; though for large trees this can be difficult to read and/or interpret
+```{r}
+plot(x = result1, siglevel = 0.2, subTree = FALSE)
+```
+
+### Example 2
+
+The next level of complexity is to include a more complicated model of the outcome. The only additional covariate available through our dataset is the binary race indicator. We'll use the following simple model $\mathrm{logit}(Y) \sim \beta_{0} + \beta_{1} ~ \mathrm{mRace}$ 
+```{r}
+X <- metadata$mRace
+```
+```{r}
+result2 <- post(y = y, OTU = otu[,1L:20L], X = X, tree = otutree)
+```
+
+Note that the informative messages now indicate that 1 covariate is included in the model. The previously described post-analysis tools can also be applied to this result.
+
+
+### Example 3
+
+In the event that the phylogenetic tree is not available in a format conducive with class "phylo", the user can instead provide a distance matrix defined by the branch lengths between OTUs. This matrix must be symmetric, of dimensions greater than or equal to the number of OTU provided in input \texttt{OTU}, have zero valued diagonal elements, and column and row names exactly as those provided in the column headers of \texttt{OTU}. To illustrate this feature, we simply use the functionality of package \textbf{ape} to define the distance matrix prior to calling \textit{post()}.
+
+```{r}
+Dmat <- ape::cophenetic.phylo(x = otutree)
+```
+
+We see that the matrix is symmetric, that diagonal elements are 0, and that the column headers of the OTU are included in the row and column names of the distance matrix
+
+```{r}
+# symmetric
+all.equal(target = Dmat[lower.tri(x = Dmat)], 
+          current = t(x = Dmat)[lower.tri(x = Dmat)])
+
+# zero diagonal
+sum(abs(x = diag(x = Dmat)))
+
+# correct names
+all(colnames(x = otu) %in% rownames(x = Dmat))
+all(colnames(x = otu) %in% colnames(x = Dmat))
+```
+
+```{r}
+result3 <- post(y = y, OTU = otu[,1L:20L], X = X, tree = Dmat)
+```
+
+We see from the information messages that the tree was internally identified as a distance matrix. 
+The results are equivalent to those obtained in Example 2.
+
+```{r}
+print(x = result3, siglevel = 0.04)
+```
+
+```{r}
+p.adjust(p = result3, method = "bonferroni")
+```
+
+Because a tree object was not provided, the plot functionality is not available for this example.
+
+```{r}
+try(expr = plot(x = result3))
+```
+
+### Example 4
+
+If neither a tree object nor distance matrix can be generated, \texttt{tree} can be specified as NULL, which triggers only the single OTU test. Note that this choice of test means that the cValues are ignored as they do not play a role. For brevity of results, we limit this analysis to only the first 20 OTUs.
+
+```{r}
+result4 <- post(y = y, OTU = otu[,1L:20L])
+```
+
+Note, that the informative messages indicate that no tree was provided and that only the single OTU test was calculated. 
+
+The \textit{print()} function provides a complete or partial list of only the single-OTU p-values
+
+```{r}
+print(x = result4)
+```
+
+from which we the single OTU p-values in the column labeled \texttt{\$SO\_pvalue}. 
+
+Plot methods are not available for this example, as a tree object was not provided.
+
+```{r}
+try(expr = plot(x = result4))
+```
+
+### Example 5
+
+For this full feature example, we include the full dataset containing 189 OTUs.
+Further, we will adjust the c-values considered in the analysis. Note that
+this change is not recommended, we do so here only for illustration. If
+the maximum c-value is $>0.05$, a warning message will be produced.
+
+```{r}
+result5 <- post(y = y, OTU = otu, X = X, tree = otutree, 
+                cValues = c(0.03,0.045,0.06))
+```
+
+Notice the warning message generated indicating that this analysis has exceeded the recommended maximum c-value of 0.05. In addition, we see that the value $c = 0$ has been added to the analysis as this is required for the single OTU test.
+
+All previously described convenience functions are available for the returned value object.
+
+```{r}
+print(x = result5, siglevel = 0.01)
+```
+
+```{r}
+pv <- p.adjust(p = result5, method = "BH")
+head(pv$adjPOST)
+head(pv$adjSO)
+```
+
+```{r}
+plot(x = result5, method = "BY", alpha = 0.01)
+```
+
+\section{References}
+
+Huang, C., Callahan, B., Wu, M. C., Holloway, S. T., Brochu, H., Lu, W., Peng, X., and Tzeng, J-Y. (2021). Phylogeny-guided microbiome OTU-specific association test (POST). \textit{Bioinformatics}, under revision.
+
+Koh, H., Blaser, M. J., and Li, H., (2017). A powerful microbiome-based association test and a microbial taxa discovery framework for comprehensive association mapping. \textit{Microbiome}, \textbf{5}(1), 45.
+
+Subramaniam, A., Kumar, R., Cliver, S. P., Zhi, D., Szychowski, J. M., Abramovici, A., Biggio, J. R., Leftkowitz, E. J., Morrow, C., and Edwards, R., K. (2016). Vaginal microbiota in pregnancy: Evaluation based on vaginal flora, birth outcome, and race. \textit{American Journal of Perinatology}, \textbf{33}(04), 401--408.
+
+Wu, C., Chen, J., Kim, J., and Pan, W. (2016). An adaptive association test for microbiome data. \textit{Genome Medicine}, \textbf{81}(1), 56.
+
+Zhao, N., Chen, J., Carroll, I. M., Ringel-Kulka, T., Epstein, M. P., Zhou, H., Zhou, J. J., Tingel, Y., Li, H., and Wu, M. C. (2015). Testing in microbiome-profiling studies with mirkat, the microbiome regression-based kernel association test. \textit{The American Journal of Human Genetics}, \textbf{96}(5), 797--807.
